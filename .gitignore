@@ -23,6 +23,7 @@ go.work.sum
 *.log
 
 # Python
+PythonScripts/
 __pycache__/
 *.py[cod]
 .venv/
