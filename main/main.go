@@ -60,12 +60,17 @@ func main() {
 	printPrompt()
 	reader := bufio.NewScanner(os.Stdin)
 	mb := backend.NewMb()
-	wrtal, err := wal.NewWal("wal.log")
+	wwal, err := wal.NewWal("wal.log")
 	if err != nil {
 		panic(err)
 	}
-	defer wrtal.File.Close()
-	err = wrtal.Replay(mb)
+	rwal, err := wal.NewWal("wal.log")
+	if err != nil {
+		panic(err)
+	}
+	defer wwal.Close()
+	defer.rwal.Close()
+	err = rwal.Replay(mb)
 	if err != nil {
 		panic(err)
 	}
@@ -87,7 +92,7 @@ func main() {
 		}
 
 		if ast.HasWrites() {
-			if err := wrtal.Append(text); err != nil {
+			if err := wwal.Append(text); err != nil {
 				panic(err)
 			}
 			fmt.Println("ok")
