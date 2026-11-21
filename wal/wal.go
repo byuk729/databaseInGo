@@ -16,7 +16,8 @@ var partialRecordError error = errors.New("record is partially torn")
 var checksumMismatch error = errors.New("checksums do not match")
 
 type WAL struct {
-	File *os.File
+	File   *os.File
+	offset int64
 }
 
 type Record struct {
@@ -77,6 +78,7 @@ func NewWal(path string) (*WAL, error) {
 	}
 	return &WAL{
 		f,
+		0,
 	}, nil
 }
 
@@ -90,7 +92,8 @@ func EncodeStatement(ss string) []byte {
 }
 
 func (w *WAL) Append(stmt string) error {
-	if _, err := w.File.Write(EncodeStatement(stmt)); err != nil {
+	encoding := EncodeStatement(stmt)
+	if _, err := w.File.Write(encoding); err != nil {
 		return err
 	}
 	if err := w.File.Sync(); err != nil {
@@ -104,11 +107,12 @@ func (w *WAL) Replay(mb *backend.Mb) error {
 	if err != nil {
 		return err
 	}
+	var validBytes int64
 	dec := NewDecoder(w.File)
 	for {
 		rec, err := dec.Next()
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || errors.Is(err, checksumMismatch) || errors.Is(err, partialRecordError) {
 				break
 			}
 			return err
@@ -117,6 +121,22 @@ func (w *WAL) Replay(mb *backend.Mb) error {
 		if err != nil {
 			return err
 		}
+		validBytes += int64(8 + rec.dataLength)
+	}
+	w.offset = validBytes
+	err = w.File.Truncate(w.offset)
+	if err != nil {
+		return err
+	}
+	if err := w.File.Sync(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (w *WAL) Close() error {
+	if err := w.File.Close(); err != nil {
+		return err
 	}
 	return nil
 }

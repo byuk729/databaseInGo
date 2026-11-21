@@ -57,3 +57,30 @@ func TestReplay(t *testing.T) {
 	}
 	assert.Equal(t, mb, walMb)
 }
+
+func TestReplayBrokenStatement(t *testing.T) {
+	stmts := []string{"CREATE TABLE users (id INT, name TEXT);", "INSERT INTO users VALUES (1, 'phil');", "INSERT INTO users VALUES (2, 'bryan');"}
+
+	walMb := backend.NewMb()
+	testDir := t.TempDir()
+	walPath := filepath.Join(testDir, "testWal.log")
+	wal, err := NewWal(walPath)
+	if err != nil {
+		t.Fatal("error creating new wal")
+	}
+	for _, stmt := range stmts {
+		err = wal.Append(stmt)
+		if err != nil {
+			t.Errorf("expected error to be not nil, actual %s", err.Error())
+		}
+	}
+	err = wal.File.Truncate(100)
+	assert.NoError(t, err)
+	err = wal.Replay(walMb)
+	assert.NoError(t, err)
+
+	expected := backend.NewMb()
+	expected.Execute(stmts[0])
+	expected.Execute(stmts[1])
+	assert.Equal(t, expected, walMb)
+}
